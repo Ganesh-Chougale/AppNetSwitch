@@ -30,6 +30,7 @@ App
 ├── appnetswitch.spec
 ├── data/
 │   └── settings.json
+├── debug_test.py
 ├── firewall/
 │   ├── __init__.py
 │   ├── __pycache__/
@@ -39,6 +40,8 @@ App
 │   └── windows.py
 ├── main.py
 ├── requirements.txt
+├── test_firewall.py
+├── test_toggle.py
 ├── ui_main.py
 └── utils/
     ├── __init__.py

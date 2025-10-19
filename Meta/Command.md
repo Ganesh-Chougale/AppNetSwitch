@@ -2,6 +2,7 @@
 ```bash
 node Codex/Runner.js "App"
 ```  
+
 ### Run App in dev mode  
 ```bash
 # for bash
@@ -19,4 +20,12 @@ python ./App/main.py
 git add .
 git commit -m "message"
 git push origin main
+```  
+
+### Create app
+#### Windows  
+```bash
+# bash (activate environment first)
+cd App
+python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.jpg" main.py
 ```  

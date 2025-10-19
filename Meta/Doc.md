@@ -8,7 +8,7 @@ source ./App/.venv/Scripts/activate
 ```  
 ### 2. Install dependancies  
 ```bash
-pip install pyqt6 psutil pyinstaller
+pip install pyqt6 psutil pyinstaller Pillow
 ```  
 ```bash
 # Verify installation

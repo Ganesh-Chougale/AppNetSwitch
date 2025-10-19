@@ -159,24 +159,27 @@ import platform
 import traceback
 from threading import Thread
 from functools import partial
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow # CRITICAL FIX: Import QMainWindow
 from PyQt6.QtCore import QTimer
 from ui_main import Ui_MainWindow
 from firewall import block_app, unblock_app
 from utils.app_manager import get_running_apps
 from utils.settings_manager import load_settings, save_settings
-class MainWindow(Ui_MainWindow):
+# CRITICAL FIX: MainWindow must inherit from QMainWindow
+class MainWindow(QMainWindow): 
     def __init__(self):
         super().__init__()
-        # ✅ Build the actual window defined in Ui_MainWindow
-        self.setupUi(self)
+        # CRITICAL FIX: Instantiate the UI class and call setupUi on self (the QMainWindow instance)
+        self.ui = Ui_MainWindow()
+        self.ui.setupUi(self)
+        # Now, access UI elements via self.ui.refresh_btn
         # Initialize app state
         self.settings = load_settings()
         self.blocked = set(self.settings.get("blocked", []))  # store app_paths
         self.app_data_map = {}  # path → {pid, name}
-        # Connect buttons
-        self.refresh_btn.clicked.connect(self.refresh)
-        self.exit_btn.clicked.connect(self.close)
+        # Connect buttons (using self.ui prefix)
+        self.ui.refresh_btn.clicked.connect(self.refresh)
+        self.ui.exit_btn.clicked.connect(self.close)
         # Initial population
         self.refresh_app_list()
         self.reapply_blocked()
@@ -184,8 +187,9 @@ class MainWindow(Ui_MainWindow):
         try:
             self.app_list = get_running_apps()
             self.app_data_map = {app["path"]: app for app in self.app_list}
-            self.populate_app_list(self.app_list, self.blocked, self.toggle_internet)
-            self.status_label.setText(f"Listed {len(self.app_list)} running user apps.")
+            # CRITICAL FIX: Call populate_app_list on the ui instance
+            self.ui.populate_app_list(self.app_list, self.blocked, self.toggle_internet)
+            self.ui.status_label.setText(f"Listed {len(self.app_list)} running user apps.")
         except Exception as e:
             print("[ERROR] refresh_app_list:", e)
             traceback.print_exc()
@@ -201,20 +205,26 @@ class MainWindow(Ui_MainWindow):
         if not app:
             print(f"[ERROR] App data not found for path: {app_path}")
             return
-        toggle = self.toggles.get(app_path)
+        # CRITICAL FIX: Access toggles dictionary via the ui instance
+        toggle = self.ui.toggles.get(app_path)
         if toggle:
             toggle.setEnabled(False)
         target = app["pid"] if platform.system().lower() == "linux" else app_path
-        print(f"[INFO] Toggle: {app_name} ({'Unblock' if state else 'Block'})")
+        # state is True (1) = allowed, False (0) = blocked
+        action = "Allow" if state else "Block"
+        print(f"[INFO] Toggle: {app_name} → {action}")
         def worker():
             try:
-                if state == 0:  # unchecked → Block
-                    block_app(target)
-                    self.blocked.add(app_path)
-                else:  # checked → Unblock
+                if state:  # True/checked → Allow (unblock)
+                    print(f"[DEBUG] Unblocking {app_name}")
                     unblock_app(target)
                     self.blocked.discard(app_path)
+                else:  # False/unchecked → Block
+                    print(f"[DEBUG] Blocking {app_name}")
+                    block_app(target)
+                    self.blocked.add(app_path)
                 save_settings({"blocked": list(self.blocked)})
+                print(f"[DEBUG] Settings saved. blocked apps: {self.blocked}")
             except Exception as e:
                 print(f"[ERROR] toggle_internet for {app_name}: {e}")
                 traceback.print_exc()
@@ -264,19 +274,44 @@ from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
     QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy
 )
-from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty
+from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
-# === Animated Toggle Switch ===
-class ToggleSwitch(QCheckBox):
+# === Custom Row Widget with Hover Support ===
+class AppRowWidget(QWidget):
+    """Custom widget for app rows with hover highlighting"""
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setChecked(True)
+        self.normal_color = "#FFFFFF"
+        self.hover_color = "#E8E8E8"
+        self.ui_instance = None
+    def enterEvent(self, event):
+        """Handle mouse enter - highlight on hover"""
+        self.setStyleSheet(f"QWidget {{ background-color: {self.hover_color}; padding: 5px; }}")
+        super().enterEvent(event)
+    def leaveEvent(self, event):
+        """Handle mouse leave - restore original color"""
+        self.setStyleSheet(f"QWidget {{ background-color: {self.normal_color}; padding: 5px; }}")
+        super().leaveEvent(event)
+# === Animated Toggle Switch (CRITICAL FIX APPLIED) ===
+class ToggleSwitch(QCheckBox):
+    # Custom signal for user-initiated toggles
+    userToggled = pyqtSignal(bool)
+    def __init__(self, parent=None):
+        super().__init__(parent)
         self.setCursor(Qt.CursorShape.PointingHandCursor)
         self.setFixedSize(50, 25)
-        self._knob_pos = 3
+        # Use 3 (off position) or (width - height + 3) (on position)
+        self._knob_off_pos = 3
+        self._knob_on_pos = self.width() - self.height() + 3
+        # Initialize knob position based on initial state (which is True/Checked in main.py)
+        # This prevents the visual position from being mismatched with the state at startup
+        self._knob_pos = self._knob_on_pos if self.isChecked() else self._knob_off_pos
         self.anim = QPropertyAnimation(self, b"knob_pos")
         self.anim.setDuration(200)
         self.anim.setEasingCurve(QEasingCurve.Type.InOutQuad)
+        # Track if this is user-initiated or programmatic change
+        self._user_initiated = False
+        # Connect to the state change for animation
         self.stateChanged.connect(self.start_animation)
     @pyqtProperty(int)
     def knob_pos(self):
@@ -286,32 +321,61 @@ class ToggleSwitch(QCheckBox):
         self._knob_pos = value
         self.update()
     def start_animation(self, state):
-        if state:
-            self.anim.setEndValue(self.width() - self.height() + 3)
+        # We start the animation from the *current* visual position, 
+        # but the end position is determined by the *new* logical state (checked or unchecked)
+        self.anim.setStartValue(self._knob_pos)
+        # state is 2 for checked, 0 for unchecked
+        if self.isChecked(): # Check the new state
+            self.anim.setEndValue(self._knob_on_pos)
         else:
-            self.anim.setEndValue(3)
+            self.anim.setEndValue(self._knob_off_pos)
+        # Ensure calculated positions are updated if size changes (e.g. window resize)
+        # This is defensively calculating the target positions again
+        self._knob_on_pos = self.width() - self.height() + 3
+        self._knob_off_pos = 3
         self.anim.start()
+    def mousePressEvent(self, event):
+        """Override to detect user clicks and toggle state"""
+        print(f"[DEBUG] ToggleSwitch mousePressEvent detected")
+        new_state = not self.isChecked()
+        self._user_initiated = True
+        self.setChecked(new_state)
+        self._user_initiated = False
+        # Emit custom signal
+        self.userToggled.emit(new_state)
+        print(f"[DEBUG] userToggled signal emitted with state={new_state}")
+    def resizeEvent(self, event):
+        # Recalculate fixed positions on resize
+        self._knob_on_pos = self.width() - self.height() + 3
+        self._knob_off_pos = 3
+        super().resizeEvent(event)
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.setRenderHint(QPainter.RenderHint.Antialiasing)
         rect = QRect(0, 0, self.width(), self.height())
+        # Draw background based on current CHECKED state (green/red)
         bg_color = QColor("#4CAF50") if self.isChecked() else QColor("#E53935")
         painter.setBrush(QBrush(bg_color))
         painter.setPen(Qt.PenStyle.NoPen)
         painter.drawRoundedRect(rect, 12, 12)
+        # Draw knob at the current animated position
         knob_size = self.height() - 6
         knob_rect = QRect(self._knob_pos, 3, knob_size, knob_size)
         painter.setBrush(QBrush(Qt.GlobalColor.white))
         painter.setPen(QPen(Qt.GlobalColor.black, 0))
         painter.drawEllipse(knob_rect)
-# === Main Window Layout ===
-class Ui_MainWindow(QMainWindow):
+# === Main UI Class (Ui_MainWindow and populate_app_list remain as per the last successful fix) ===
+# ... (rest of App/ui_main.py remains the same)
+class Ui_MainWindow:
     def setupUi(self, MainWindow):
         MainWindow.setWindowTitle("AppNetSwitch")
-        MainWindow.resize(600, 400)
+        MainWindow.resize(700, 500)
+        MainWindow.setMinimumSize(600, 400)
         self.central_widget = QWidget(MainWindow)
         MainWindow.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10)
         # Header
         header_layout = QHBoxLayout()
         self.refresh_btn = QPushButton("Refresh")
@@ -323,8 +387,11 @@ class Ui_MainWindow(QMainWindow):
         # Scrollable app list
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("QScrollArea { border: 1px solid #ccc; }")
         self.scroll_content = QWidget()
         self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_layout.setSpacing(0)
         self.scroll_area.setWidget(self.scroll_content)
         self.main_layout.addWidget(self.scroll_area)
         # Status label
@@ -335,33 +402,84 @@ class Ui_MainWindow(QMainWindow):
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
         self.toggles.clear()
-        # Clear previous list
-        while self.scroll_layout.count():
-            child = self.scroll_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        # Clear previous list completely
+        while self.scroll_layout.count() > 0:
+            item = self.scroll_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                # Recursively delete layouts
+                while item.layout().count():
+                    child = item.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
         if not apps:
             self.scroll_layout.addWidget(QLabel("No active user apps found."))
             self.scroll_layout.addStretch()
             return
-        for app in apps:
-            row = QHBoxLayout()
-            row.setSpacing(12)
+        for index, app in enumerate(apps):
+            # Create a custom row widget with hover support
+            row_widget = AppRowWidget()
+            row = QHBoxLayout(row_widget)
+            row.setContentsMargins(8, 8, 8, 8)
+            row.setSpacing(10)
             icon_label = QLabel("🖥")
             icon_label.setFixedSize(24, 24)
             name_label = QLabel(app["name"])
-            name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            name_label.setMinimumWidth(200)
+            name_label.setMaximumWidth(400)
+            name_label.setWordWrap(False)
+            # Responsive font size
+            font = name_label.font()
+            font.setPointSize(10)
+            name_label.setFont(font)
             toggle = ToggleSwitch()
             toggle.setChecked(app["path"] not in blocked)
-            toggle.stateChanged.connect(partial(on_toggle, app["path"], app["name"]))
+            toggle.setFixedSize(50, 25)
+            # Store app info in toggle for later retrieval
+            toggle.app_path = app["path"]
+            toggle.app_name = app["name"]
+            toggle.on_toggle_callback = on_toggle
+            # Connect userToggled signal (only fires on user clicks)
+            toggle.userToggled.connect(partial(self._on_toggle_user_toggled, toggle))
             self.toggles[app["path"]] = toggle
+            # Add widgets to row: icon, name, stretch, toggle
             row.addWidget(icon_label)
             row.addWidget(name_label)
             row.addStretch()
             row.addWidget(toggle)
-            self.scroll_layout.addLayout(row)
+            # Apply alternating row colors (Option 3)
+            # Even rows: white, Odd rows: light gray
+            if index % 2 == 0:
+                row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
+                row_widget.normal_color = "#FFFFFF"
+                row_widget.hover_color = "#E8E8E8"
+            else:
+                row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
+                row_widget.normal_color = "#F5F5F5"
+                row_widget.hover_color = "#EBEBEB"
+            # Store reference to UI instance for hover callbacks
+            row_widget.ui_instance = self
+            # Add row to scroll layout
+            self.scroll_layout.addWidget(row_widget)
+        # Add final stretch to push everything to the top
         self.scroll_layout.addStretch()
         self.status_label.setText(f"Listed {len(apps)} running user apps.")
+    def _on_row_enter(self, row_widget):
+        """Handle mouse enter event for row highlighting"""
+        # Highlight on hover - darker shade
+        if row_widget.is_even:
+            row_widget.setStyleSheet("QWidget { background-color: #E8E8E8; }")
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #EBEBEB; }")
+    def _on_row_leave(self, row_widget):
+        """Handle mouse leave event - restore original color"""
+        # Restore original alternating color
+        row_widget.setStyleSheet(row_widget.original_stylesheet)
+    def _on_toggle_user_toggled(self, toggle, new_state):
+        """Callback for user-initiated toggle changes"""
+        print(f"[UI] Toggle clicked for {toggle.app_name}: new_state={new_state} (1=allowed, 0=blocked)")
+        toggle.on_toggle_callback(toggle.app_path, toggle.app_name, new_state)
 ```
 
 App\utils\app_manager.py:
