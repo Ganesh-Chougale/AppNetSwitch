@@ -5,6 +5,25 @@ from PyQt6.QtWidgets import (
 from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
 
+# === Custom Row Widget with Hover Support ===
+class AppRowWidget(QWidget):
+    """Custom widget for app rows with hover highlighting"""
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.normal_color = "#FFFFFF"
+        self.hover_color = "#E8E8E8"
+        self.ui_instance = None
+    
+    def enterEvent(self, event):
+        """Handle mouse enter - highlight on hover"""
+        self.setStyleSheet(f"QWidget {{ background-color: {self.hover_color}; padding: 5px; }}")
+        super().enterEvent(event)
+    
+    def leaveEvent(self, event):
+        """Handle mouse leave - restore original color"""
+        self.setStyleSheet(f"QWidget {{ background-color: {self.normal_color}; padding: 5px; }}")
+        super().leaveEvent(event)
+
 # === Animated Toggle Switch (CRITICAL FIX APPLIED) ===
 class ToggleSwitch(QCheckBox):
     # Custom signal for user-initiated toggles
@@ -102,10 +121,13 @@ class ToggleSwitch(QCheckBox):
 class Ui_MainWindow:
     def setupUi(self, MainWindow):
         MainWindow.setWindowTitle("AppNetSwitch")
-        MainWindow.resize(600, 400)
+        MainWindow.resize(700, 500)
+        MainWindow.setMinimumSize(600, 400)
         self.central_widget = QWidget(MainWindow)
         MainWindow.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(10, 10, 10, 10)
+        self.main_layout.setSpacing(10)
         # Header
         header_layout = QHBoxLayout()
         self.refresh_btn = QPushButton("Refresh")
@@ -117,8 +139,11 @@ class Ui_MainWindow:
         # Scrollable app list
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setStyleSheet("QScrollArea { border: 1px solid #ccc; }")
         self.scroll_content = QWidget()
         self.scroll_layout = QVBoxLayout(self.scroll_content)
+        self.scroll_layout.setContentsMargins(0, 0, 0, 0)
+        self.scroll_layout.setSpacing(0)
         self.scroll_area.setWidget(self.scroll_content)
         self.main_layout.addWidget(self.scroll_area)
         # Status label
@@ -129,38 +154,95 @@ class Ui_MainWindow:
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
         self.toggles.clear()
-        # Clear previous list
-        while self.scroll_layout.count():
-            child = self.scroll_layout.takeAt(0)
-            if child.widget():
-                child.widget().deleteLater()
+        
+        # Clear previous list completely
+        while self.scroll_layout.count() > 0:
+            item = self.scroll_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()
+            elif item.layout():
+                # Recursively delete layouts
+                while item.layout().count():
+                    child = item.layout().takeAt(0)
+                    if child.widget():
+                        child.widget().deleteLater()
+        
         if not apps:
             self.scroll_layout.addWidget(QLabel("No active user apps found."))
             self.scroll_layout.addStretch()
             return
-        for app in apps:
-            row = QHBoxLayout()
-            row.setSpacing(12)
-            icon_label = QLabel("")
+        
+        for index, app in enumerate(apps):
+            # Create a custom row widget with hover support
+            row_widget = AppRowWidget()
+            row = QHBoxLayout(row_widget)
+            row.setContentsMargins(8, 8, 8, 8)
+            row.setSpacing(10)
+            
+            icon_label = QLabel("🖥")
             icon_label.setFixedSize(24, 24)
+            
             name_label = QLabel(app["name"])
-            name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+            name_label.setMinimumWidth(200)
+            name_label.setMaximumWidth(400)
+            name_label.setWordWrap(False)
+            # Responsive font size
+            font = name_label.font()
+            font.setPointSize(10)
+            name_label.setFont(font)
+            
             toggle = ToggleSwitch()
             toggle.setChecked(app["path"] not in blocked)
+            toggle.setFixedSize(50, 25)
+            
             # Store app info in toggle for later retrieval
             toggle.app_path = app["path"]
             toggle.app_name = app["name"]
             toggle.on_toggle_callback = on_toggle
+            
             # Connect userToggled signal (only fires on user clicks)
             toggle.userToggled.connect(partial(self._on_toggle_user_toggled, toggle))
             self.toggles[app["path"]] = toggle
+            
+            # Add widgets to row: icon, name, stretch, toggle
             row.addWidget(icon_label)
             row.addWidget(name_label)
             row.addStretch()
             row.addWidget(toggle)
-            self.scroll_layout.addLayout(row)
+            
+            # Apply alternating row colors (Option 3)
+            # Even rows: white, Odd rows: light gray
+            if index % 2 == 0:
+                row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
+                row_widget.normal_color = "#FFFFFF"
+                row_widget.hover_color = "#E8E8E8"
+            else:
+                row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
+                row_widget.normal_color = "#F5F5F5"
+                row_widget.hover_color = "#EBEBEB"
+            
+            # Store reference to UI instance for hover callbacks
+            row_widget.ui_instance = self
+            
+            # Add row to scroll layout
+            self.scroll_layout.addWidget(row_widget)
+        
+        # Add final stretch to push everything to the top
         self.scroll_layout.addStretch()
         self.status_label.setText(f"Listed {len(apps)} running user apps.")
+    
+    def _on_row_enter(self, row_widget):
+        """Handle mouse enter event for row highlighting"""
+        # Highlight on hover - darker shade
+        if row_widget.is_even:
+            row_widget.setStyleSheet("QWidget { background-color: #E8E8E8; }")
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #EBEBEB; }")
+    
+    def _on_row_leave(self, row_widget):
+        """Handle mouse leave event - restore original color"""
+        # Restore original alternating color
+        row_widget.setStyleSheet(row_widget.original_stylesheet)
     
     def _on_toggle_user_toggled(self, toggle, new_state):
         """Callback for user-initiated toggle changes"""
