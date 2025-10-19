@@ -1,0 +1,22 @@
+### Summary  
+```bash
+node Codex/Runner.js "App"
+```  
+### Run App in dev mode  
+```bash
+# for bash
+source ./App/.venv/Scripts/activate
+python ./App/main.py 
+```  
+```bash
+# for powershelll
+.\App\.venv\Scripts\Activate.ps1
+python ./App/main.py 
+```  
+
+### Git Pushes
+```bash
+git add .
+git commit -m "message"
+git push origin main
+```  
