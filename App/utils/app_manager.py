@@ -1,5 +1,6 @@
 import psutil
 import os
+from .naming_helper import get_app_display_name
 
 # Updated list of known system paths and processes for better filtering
 SYSTEM_PATHS = [
@@ -59,10 +60,12 @@ def get_running_apps():
                 
             seen_paths.add(exe)
             
+            display_name = get_app_display_name(exe, proc_info['name'])
+            
             apps.append({
-                "name": proc_info['name'],
+                "name": display_name,
                 "path": exe,
-                "pid": proc_info['pid'] # Required for Linux blocking
+                "pid": proc_info['pid']
             })
             
         except (psutil.NoSuchProcess, psutil.AccessDenied):
