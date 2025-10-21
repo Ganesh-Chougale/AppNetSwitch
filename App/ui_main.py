@@ -1,6 +1,6 @@
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy
+    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy, QComboBox
 )
 from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
@@ -120,8 +120,10 @@ class ToggleSwitch(QCheckBox):
 
 class Ui_MainWindow:
     def setupUi(self, MainWindow):
+        self.main_window = MainWindow  # Store reference to main window
+        MainWindow.setObjectName("MainWindow")
         MainWindow.setWindowTitle("AppNetSwitch")
-        MainWindow.resize(700, 500)
+        MainWindow.resize(800, 600)
         MainWindow.setMinimumSize(600, 400)
         self.central_widget = QWidget(MainWindow)
         MainWindow.setCentralWidget(self.central_widget)
@@ -130,11 +132,37 @@ class Ui_MainWindow:
         self.main_layout.setSpacing(10)
         # Header
         header_layout = QHBoxLayout()
-        self.refresh_btn = QPushButton("Refresh")
-        self.exit_btn = QPushButton("Exit")
+        
+        # Left side: Refresh button
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.setToolTip("Refresh the list of running applications")
+        
+        # Center: App filter dropdown
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Show:")
+        self.app_filter = QComboBox()
+        self.app_filter.addItems(["All Apps", "User Apps Only", "System Apps Only"])
+        self.app_filter.setCurrentIndex(0)  # Default to "All Apps"
+        self.app_filter.setFixedWidth(150)
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.app_filter)
+        
+        # Right side: Exit button
+        self.exit_btn = QPushButton("❌ Exit")
+        
+        # Add widgets to header
         header_layout.addWidget(self.refresh_btn)
         header_layout.addStretch()
+        header_layout.addLayout(filter_layout)
+        header_layout.addStretch()
         header_layout.addWidget(self.exit_btn)
+        
+        # Set default filter to 'User Apps Only' (index 1)
+        self.app_filter.setCurrentIndex(1)
+        
+        # Connect filter change signal
+        self.app_filter.currentTextChanged.connect(self.on_filter_changed)
+        
         self.main_layout.addLayout(header_layout)
         # Scrollable app list
         self.scroll_area = QScrollArea()
@@ -153,6 +181,8 @@ class Ui_MainWindow:
         self.toggles = {}
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
+        from utils.app_filter import categorize_apps
+        
         self.toggles.clear()
         
         # Clear previous list completely
@@ -168,68 +198,98 @@ class Ui_MainWindow:
                         child.widget().deleteLater()
         
         if not apps:
-            self.scroll_layout.addWidget(QLabel("No active user apps found."))
+            self.scroll_layout.addWidget(QLabel("No applications found matching the current filter."))
             self.scroll_layout.addStretch()
             return
+            
+        # Categorize apps
+        user_apps, system_apps = categorize_apps(apps)
         
-        for index, app in enumerate(apps):
-            # Create a custom row widget with hover support
-            row_widget = AppRowWidget()
-            row = QHBoxLayout(row_widget)
-            row.setContentsMargins(8, 8, 8, 8)
-            row.setSpacing(10)
+        # Add user apps section
+        if user_apps:
+            user_header = QLabel("<b>User Applications</b>")
+            user_header.setStyleSheet("color: #2c3e50; margin-top: 10px; margin-bottom: 5px;")
+            self.scroll_layout.addWidget(user_header)
             
-            icon_label = QLabel("🖥")
-            icon_label.setFixedSize(24, 24)
-            
-            name_label = QLabel(app["name"])
-            name_label.setMinimumWidth(200)
-            name_label.setMaximumWidth(400)
-            name_label.setWordWrap(False)
-            # Responsive font size
-            font = name_label.font()
-            font.setPointSize(10)
-            name_label.setFont(font)
-            
-            toggle = ToggleSwitch()
-            toggle.setChecked(app["path"] not in blocked)
-            toggle.setFixedSize(50, 25)
-            
-            # Store app info in toggle for later retrieval
-            toggle.app_path = app["path"]
-            toggle.app_name = app["name"]
-            toggle.on_toggle_callback = on_toggle
-            
-            # Connect userToggled signal (only fires on user clicks)
-            toggle.userToggled.connect(partial(self._on_toggle_user_toggled, toggle))
-            self.toggles[app["path"]] = toggle
-            
-            # Add widgets to row: icon, name, stretch, toggle
-            row.addWidget(icon_label)
-            row.addWidget(name_label)
-            row.addStretch()
-            row.addWidget(toggle)
-            
-            # Apply alternating row colors (Option 3)
-            # Even rows: white, Odd rows: light gray
-            if index % 2 == 0:
-                row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
-                row_widget.normal_color = "#FFFFFF"
-                row_widget.hover_color = "#E8E8E8"
-            else:
-                row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
-                row_widget.normal_color = "#F5F5F5"
-                row_widget.hover_color = "#EBEBEB"
-            
-            # Store reference to UI instance for hover callbacks
-            row_widget.ui_instance = self
-            
-            # Add row to scroll layout
-            self.scroll_layout.addWidget(row_widget)
+            for app in user_apps:
+                self._add_app_row(app, blocked, on_toggle, is_system=False)
         
-        # Add final stretch to push everything to the top
-        self.scroll_layout.addStretch()
-        self.status_label.setText(f"Listed {len(apps)} running user apps.")
+        # Add system apps section if there are any
+        if system_apps:
+            system_header = QLabel("<b>System Applications</b>")
+            system_header.setStyleSheet("color: #7f8c8d; margin-top: 15px; margin-bottom: 5px;")
+            self.scroll_layout.addWidget(system_header)
+            
+            for app in system_apps:
+                self._add_app_row(app, blocked, on_toggle, is_system=True)
+    
+    def _add_app_row(self, app, blocked, on_toggle, is_system=False):
+        from functools import partial
+        
+        # Create a custom row widget with hover support
+        row_widget = AppRowWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(10)
+        
+        # Apply alternating row colors
+        row_count = self.scroll_layout.count()
+        if row_count % 2 == 0:
+            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
+            row_widget.normal_color = "#FFFFFF"
+            row_widget.hover_color = "#E8E8E8"
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
+            row_widget.normal_color = "#F5F5F5"
+            row_widget.hover_color = "#EBEBEB"
+        
+        # App icon (using emoji for now)
+        icon = "🛠️" if is_system else "🖥️"
+        icon_label = QLabel(icon)
+        icon_label.setFixedSize(24, 24)
+        
+        # App name with tooltip showing full path
+        name_label = QLabel(app["name"])
+        name_label.setToolTip(f"{app['name']}\n{app['path']}")
+        name_label.setMinimumWidth(200)
+        name_label.setMaximumWidth(400)
+        name_label.setWordWrap(False)
+        
+        # Style system apps differently
+        if is_system:
+            name_label.setStyleSheet("color: #7f8c8d;")
+        
+        # Responsive font size
+        font = name_label.font()
+        font.setPointSize(10)
+        name_label.setFont(font)
+        
+        # Toggle switch
+        toggle = ToggleSwitch()
+        toggle.setChecked(app["path"] not in blocked)
+        toggle.setFixedSize(50, 25)
+        
+        # Add widgets to row
+        row.addWidget(icon_label)
+        row.addWidget(name_label, 1)  # Allow name to expand
+        row.addStretch()
+        row.addWidget(toggle)
+        
+        # Store app info in toggle for later retrieval
+        toggle.app_path = app["path"]
+        toggle.app_name = app["name"]
+        
+        # Connect toggle signal
+        toggle.userToggled.connect(partial(on_toggle, app_path=app["path"]))
+        
+        # Store reference to toggle
+        self.toggles[app["path"]] = toggle
+        
+        # Store reference to UI instance for hover callbacks
+        row_widget.ui_instance = self
+        
+        # Add row to layout
+        self.scroll_layout.addWidget(row_widget)
     
     def _on_row_enter(self, row_widget):
         """Handle mouse enter event for row highlighting"""
@@ -240,9 +300,18 @@ class Ui_MainWindow:
             row_widget.setStyleSheet("QWidget { background-color: #EBEBEB; }")
     
     def _on_row_leave(self, row_widget):
-        """Handle mouse leave event - restore original color"""
-        # Restore original alternating color
-        row_widget.setStyleSheet(row_widget.original_stylesheet)
+        """Handle mouse leave event for row highlighting"""
+        # Restore normal background
+        if row_widget.is_even:
+            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; }")
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; }")
+            
+    def on_filter_changed(self, filter_text):
+        """Handle filter dropdown changes"""
+        # Call refresh directly on the main window
+        if hasattr(self.main_window, 'refresh'):
+            self.main_window.refresh()
     
     def _on_toggle_user_toggled(self, toggle, new_state):
         """Callback for user-initiated toggle changes"""

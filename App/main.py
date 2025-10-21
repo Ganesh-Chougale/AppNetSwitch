@@ -37,11 +37,21 @@ class MainWindow(QMainWindow):
         
     def refresh_app_list(self):
         try:
-            self.app_list = get_running_apps()
+            # Get the current filter selection from the UI
+            filter_type = self.ui.app_filter.currentText().lower().replace(' apps only', '')
+            if filter_type == 'all apps':
+                filter_type = 'all'
+                
+            # Get apps with the current filter
+            self.app_list = get_running_apps(filter_type)
             self.app_data_map = {app["path"]: app for app in self.app_list}
-            # CRITICAL FIX: Call populate_app_list on the ui instance
+            
+            # Update the UI with the filtered list
             self.ui.populate_app_list(self.app_list, self.blocked, self.toggle_internet)
-            self.ui.status_label.setText(f"Listed {len(self.app_list)} running user apps.")
+            
+            # Update status label with filter info
+            filter_text = filter_type.capitalize()
+            self.ui.status_label.setText(f"Showing {len(self.app_list)} {filter_text} apps")
         except Exception as e:
             print("[ERROR] refresh_app_list:", e)
             traceback.print_exc()
