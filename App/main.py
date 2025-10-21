@@ -115,10 +115,40 @@ class MainWindow(QMainWindow):
             print("[ERROR] refresh:", e)
             traceback.print_exc()
 
+def is_admin():
+    """Check if the current user has admin privileges"""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+
+def run_as_admin():
+    """Relaunch the script with admin privileges"""
+    if platform.system().lower() != 'windows':
+        return False
+        
+    if is_admin():
+        return False  # Already running as admin
+        
+    # Re-run the program with admin rights
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, " ".join(sys.argv), None, 1
+    )
+    return True
+
 if __name__ == "__main__":
+    # Add Windows-specific imports
+    if platform.system().lower() == 'windows':
+        import ctypes
+        
+        # Try to elevate if not admin
+        if not is_admin():
+            print("Requesting administrator privileges...")
+            if run_as_admin():
+                sys.exit(0)  # Exit the non-elevated instance
+    
     os_name = platform.system().lower()
-    # Permission check
-    is_admin = False
+    is_admin = True  # If we get here, we're either admin or not on Windows
     if os_name == "windows":
         import ctypes
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()

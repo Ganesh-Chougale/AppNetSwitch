@@ -279,8 +279,8 @@ class Ui_MainWindow:
         toggle.app_path = app["path"]
         toggle.app_name = app["name"]
         
-        # Connect toggle signal
-        toggle.userToggled.connect(partial(on_toggle, app_path=app["path"]))
+        # Connect toggle signal with proper parameter handling
+        toggle.userToggled.connect(lambda checked, path=app["path"], name=app["name"]: on_toggle(path, name, checked))
         
         # Store reference to toggle
         self.toggles[app["path"]] = toggle

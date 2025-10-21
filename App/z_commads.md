@@ -25,7 +25,7 @@ git push origin main
 ### Create app
 #### Windows  
 ```bash
-source ./App/.venv/Scripts/activate
+# bash (activate environment first)
 cd App
 python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.jpg" main.py
 ```  
