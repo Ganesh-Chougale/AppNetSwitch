@@ -48,6 +48,7 @@ App
 ├── dist/
 │   └── AppNetSwitch.exe
 ├── Extras/
+│   ├── File_Icon.ico
 │   └── File_Icon.png
 ├── firewall/
 │   ├── __init__.py
@@ -67,10 +68,14 @@ App
     │   ├── __init__.cpython-313.pyc
     │   ├── app_filter.cpython-313.pyc
     │   ├── app_manager.cpython-313.pyc
+    │   ├── app_searching.cpython-313.pyc
+    │   ├── app_sorting.cpython-313.pyc
     │   ├── naming_helper.cpython-313.pyc
     │   └── settings_manager.cpython-313.pyc
     ├── app_filter.py
     ├── app_manager.py
+    ├── app_searching.py
+    ├── app_sorting.py
     ├── naming_helper.py
     └── settings_manager.py
 ```

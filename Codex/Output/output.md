@@ -51,6 +51,7 @@ App
 ├── dist/
 │   └── AppNetSwitch.exe
 ├── Extras/
+│   ├── File_Icon.ico
 │   └── File_Icon.png
 ├── firewall/
 │   ├── __init__.py
@@ -70,10 +71,14 @@ App
     │   ├── __init__.cpython-313.pyc
     │   ├── app_filter.cpython-313.pyc
     │   ├── app_manager.cpython-313.pyc
+    │   ├── app_searching.cpython-313.pyc
+    │   ├── app_sorting.cpython-313.pyc
     │   ├── naming_helper.cpython-313.pyc
     │   └── settings_manager.cpython-313.pyc
     ├── app_filter.py
     ├── app_manager.py
+    ├── app_searching.py
+    ├── app_sorting.py
     ├── naming_helper.py
     └── settings_manager.py
 ```
@@ -244,6 +249,7 @@ from threading import Thread
 from functools import partial
 from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow # CRITICAL FIX: Import QMainWindow
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon
 from ui_main import Ui_MainWindow
 from firewall import block_app, unblock_app
 from utils.app_manager import get_running_apps
@@ -377,7 +383,16 @@ if __name__ == "__main__":
         )
         sys.exit(1)
     app = QApplication(sys.argv)
+    # ✅ Universal icon path fix (works for both .py and .exe)
+    if getattr(sys, 'frozen', False):
+        app_path = sys._MEIPASS
+    else:
+        app_path = os.path.dirname(os.path.abspath(__file__))
+    icon_path = os.path.join(app_path, "Extras", "File_Icon.ico")
+    app_icon = QIcon(icon_path)
+    app.setWindowIcon(app_icon)
     window = MainWindow()
+    window.setWindowIcon(app_icon)  # ✅ Ensures top-left & taskbar icon both change
     window.show()
     sys.exit(app.exec())
 ```
@@ -386,7 +401,7 @@ App\ui_main.py:
 ```python
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy, QComboBox
+    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy, QComboBox, QLineEdit
 )
 from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
@@ -400,11 +415,11 @@ class AppRowWidget(QWidget):
         self.ui_instance = None
     def enterEvent(self, event):
         """Handle mouse enter - highlight on hover"""
-        self.setStyleSheet(f"QWidget {{ background-color: {self.hover_color}; padding: 5px; }}")
+        self.setStyleSheet(f"QWidget {{ background-color: {self.hover_color}; }}")
         super().enterEvent(event)
     def leaveEvent(self, event):
         """Handle mouse leave - restore original color"""
-        self.setStyleSheet(f"QWidget {{ background-color: {self.normal_color}; padding: 5px; }}")
+        self.setStyleSheet(f"QWidget {{ background-color: {self.normal_color}; }}")
         super().leaveEvent(event)
 # === Animated Toggle Switch (CRITICAL FIX APPLIED) ===
 class ToggleSwitch(QCheckBox):
@@ -519,6 +534,35 @@ class Ui_MainWindow:
         # Connect filter change signal
         self.app_filter.currentTextChanged.connect(self.on_filter_changed)
         self.main_layout.addLayout(header_layout)
+        # Search and Sort bar
+        search_sort_layout = QHBoxLayout()
+        # Search box
+        search_label = QLabel("🔍 Search:")
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Type to search apps...")
+        self.search_box.setClearButtonEnabled(True)
+        self.search_box.setMinimumWidth(200)
+        self.search_box.setMaximumWidth(400)
+        self.search_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.search_box.textChanged.connect(self.on_search_changed)
+        # Sort dropdown
+        from utils.app_sorting import get_sort_options, get_default_sort
+        sort_label = QLabel("Sort by:")
+        self.sort_dropdown = QComboBox()
+        self.sort_dropdown.addItems(get_sort_options())
+        self.sort_dropdown.setCurrentText(get_default_sort())
+        self.sort_dropdown.setMinimumWidth(180)
+        self.sort_dropdown.setMaximumWidth(220)
+        self.sort_dropdown.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self.sort_dropdown.currentTextChanged.connect(self.on_sort_changed)
+        # Add to layout
+        search_sort_layout.addWidget(search_label)
+        search_sort_layout.addWidget(self.search_box, 1)  # Allow search box to expand
+        search_sort_layout.addSpacing(20)
+        search_sort_layout.addWidget(sort_label)
+        search_sort_layout.addWidget(self.sort_dropdown, 0)  # Fixed size
+        search_sort_layout.addStretch()
+        self.main_layout.addLayout(search_sort_layout)
         # Scrollable app list
         self.scroll_area = QScrollArea()
         self.scroll_area.setWidgetResizable(True)
@@ -527,16 +571,32 @@ class Ui_MainWindow:
         self.scroll_layout = QVBoxLayout(self.scroll_content)
         self.scroll_layout.setContentsMargins(0, 0, 0, 0)
         self.scroll_layout.setSpacing(0)
+        self.scroll_layout.setAlignment(Qt.AlignmentFlag.AlignTop)  # Align items to top
         self.scroll_area.setWidget(self.scroll_content)
         self.main_layout.addWidget(self.scroll_area)
         # Status label
         self.status_label = QLabel("Welcome to AppNetSwitch!")
         self.main_layout.addWidget(self.status_label)
-        # Storage for toggles
+        # Storage for toggles and app data
         self.toggles = {}
+        self.all_apps = []  # Store all apps for filtering
+        self.blocked_apps = set()  # Store blocked apps
+        self.on_toggle_callback = None  # Store toggle callback
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
         from utils.app_filter import categorize_apps
+        from utils.app_searching import search_apps
+        from utils.app_sorting import sort_apps
+        # Store data for search and sort operations
+        self.all_apps = apps
+        self.blocked_apps = blocked
+        self.on_toggle_callback = on_toggle
+        # Apply search filter (case-insensitive, real-time)
+        search_query = self.search_box.text()
+        filtered_apps = search_apps(apps, search_query)
+        # Apply sorting
+        sort_type = self.sort_dropdown.currentText()
+        sorted_apps = sort_apps(filtered_apps, sort_type, blocked)
         self.toggles.clear()
         # Clear previous list completely
         while self.scroll_layout.count() > 0:
@@ -549,53 +609,75 @@ class Ui_MainWindow:
                     child = item.layout().takeAt(0)
                     if child.widget():
                         child.widget().deleteLater()
-        if not apps:
-            self.scroll_layout.addWidget(QLabel("No applications found matching the current filter."))
+        if not sorted_apps:
+            no_results = QLabel("No applications found matching the current filter.")
+            no_results.setStyleSheet("color: #7f8c8d; padding: 20px; font-size: 12px;")
+            self.scroll_layout.addWidget(no_results)
             self.scroll_layout.addStretch()
             return
         # Categorize apps
-        user_apps, system_apps = categorize_apps(apps)
+        user_apps, system_apps = categorize_apps(sorted_apps)
         # Add user apps section
         if user_apps:
             user_header = QLabel("<b>User Applications</b>")
-            user_header.setStyleSheet("color: #2c3e50; margin-top: 10px; margin-bottom: 5px;")
+            user_header.setStyleSheet("color: #2c3e50; padding: 8px 10px; background-color: #ecf0f1;")
+            user_header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            user_header.setMinimumHeight(30)
+            user_header.setMaximumHeight(30)
             self.scroll_layout.addWidget(user_header)
             for app in user_apps:
                 self._add_app_row(app, blocked, on_toggle, is_system=False)
         # Add system apps section if there are any
         if system_apps:
             system_header = QLabel("<b>System Applications</b>")
-            system_header.setStyleSheet("color: #7f8c8d; margin-top: 15px; margin-bottom: 5px;")
+            system_header.setStyleSheet("color: #7f8c8d; padding: 8px 10px; background-color: #f8f9fa;")
+            system_header.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+            system_header.setMinimumHeight(30)
+            system_header.setMaximumHeight(30)
             self.scroll_layout.addWidget(system_header)
             for app in system_apps:
                 self._add_app_row(app, blocked, on_toggle, is_system=True)
+        # Add stretch at the end to push all items to the top
+        self.scroll_layout.addStretch()
     def _add_app_row(self, app, blocked, on_toggle, is_system=False):
         from functools import partial
         # Create a custom row widget with hover support
         row_widget = AppRowWidget()
+        row_widget.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        row_widget.setMinimumHeight(40)  # Consistent row height
+        row_widget.setMaximumHeight(40)  # Prevent expansion
         row = QHBoxLayout(row_widget)
         row.setContentsMargins(8, 8, 8, 8)
         row.setSpacing(10)
         # Apply alternating row colors
         row_count = self.scroll_layout.count()
         if row_count % 2 == 0:
-            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
+            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; }")
             row_widget.normal_color = "#FFFFFF"
             row_widget.hover_color = "#E8E8E8"
         else:
-            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
+            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; }")
             row_widget.normal_color = "#F5F5F5"
             row_widget.hover_color = "#EBEBEB"
         # App icon (using emoji for now)
         icon = "🛠️" if is_system else "🖥️"
         icon_label = QLabel(icon)
         icon_label.setFixedSize(24, 24)
+        icon_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         # App name with tooltip showing full path
         name_label = QLabel(app["name"])
         name_label.setToolTip(f"{app['name']}\n{app['path']}")
-        name_label.setMinimumWidth(200)
-        name_label.setMaximumWidth(400)
+        # Make it responsive - no fixed widths
+        name_label.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        name_label.setMinimumHeight(25)  # Fixed height to prevent expansion
+        name_label.setMaximumHeight(25)  # Fixed height to prevent expansion
+        # Use elision for long text instead of wrapping
+        name_label.setTextFormat(Qt.TextFormat.PlainText)
         name_label.setWordWrap(False)
+        # Enable text elision (add ... for long text)
+        font_metrics = name_label.fontMetrics()
+        elided_text = font_metrics.elidedText(app["name"], Qt.TextElideMode.ElideRight, 9999)
+        name_label.setText(elided_text)
         # Style system apps differently
         if is_system:
             name_label.setStyleSheet("color: #7f8c8d;")
@@ -607,11 +689,11 @@ class Ui_MainWindow:
         toggle = ToggleSwitch()
         toggle.setChecked(app["path"] not in blocked)
         toggle.setFixedSize(50, 25)
-        # Add widgets to row
-        row.addWidget(icon_label)
-        row.addWidget(name_label, 1)  # Allow name to expand
-        row.addStretch()
-        row.addWidget(toggle)
+        toggle.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
+        # Add widgets to row - no stretch between name and toggle
+        row.addWidget(icon_label, 0)  # Fixed size
+        row.addWidget(name_label, 1)  # Expand to fill available space
+        row.addWidget(toggle, 0)  # Fixed size
         # Store app info in toggle for later retrieval
         toggle.app_path = app["path"]
         toggle.app_name = app["name"]
@@ -642,6 +724,27 @@ class Ui_MainWindow:
         # Call refresh directly on the main window
         if hasattr(self.main_window, 'refresh'):
             self.main_window.refresh()
+    def on_search_changed(self, search_text):
+        """Handle real-time search input changes"""
+        # Re-populate the list with current search query
+        if hasattr(self, 'all_apps') and self.all_apps:
+            self.populate_app_list(self.all_apps, self.blocked_apps, self.on_toggle_callback)
+            # Update status label
+            from utils.app_searching import search_apps
+            filtered_count = len(search_apps(self.all_apps, search_text))
+            if search_text.strip():
+                self.main_window.ui.status_label.setText(
+                    f"Found {filtered_count} app(s) matching '{search_text}'"
+                )
+            else:
+                self.main_window.ui.status_label.setText(
+                    f"Showing {len(self.all_apps)} apps"
+                )
+    def on_sort_changed(self, sort_text):
+        """Handle sort dropdown changes"""
+        # Re-populate the list with current sort option
+        if hasattr(self, 'all_apps') and self.all_apps:
+            self.populate_app_list(self.all_apps, self.blocked_apps, self.on_toggle_callback)
     def _on_toggle_user_toggled(self, toggle, new_state):
         """Callback for user-initiated toggle changes"""
         print(f"[UI] Toggle clicked for {toggle.app_name}: new_state={new_state} (1=allowed, 0=blocked)")
@@ -766,6 +869,109 @@ def get_running_apps(filter_type="all"):
     # Sort apps: user apps first, then system apps, then alphabetically
     apps.sort(key=lambda x: (x["is_system"], x["name"].lower()))
     return apps
+```
+
+App\utils\app_searching.py:
+```python
+"""
+Real-time application searching functionality.
+Provides case-insensitive search across app names and paths.
+"""
+def search_apps(apps: list, search_query: str) -> list:
+    """
+    Filter apps based on search query (case-insensitive).
+    Args:
+        apps: List of app dictionaries with 'name' and 'path' keys
+        search_query: Search string to filter by
+    Returns:
+        Filtered list of apps matching the search query
+    """
+    if not search_query or not search_query.strip():
+        return apps
+    query = search_query.lower().strip()
+    filtered_apps = []
+    for app in apps:
+        app_name = app.get("name", "").lower()
+        app_path = app.get("path", "").lower()
+        # Search in both name and path
+        if query in app_name or query in app_path:
+            filtered_apps.append(app)
+    return filtered_apps
+def highlight_search_match(text: str, search_query: str) -> str:
+    """
+    Highlight matching text in search results (for future UI enhancement).
+    Args:
+        text: Original text
+        search_query: Search query to highlight
+    Returns:
+        Text with HTML highlighting (for QLabel rich text)
+    """
+    if not search_query or not search_query.strip():
+        return text
+    # Case-insensitive replacement with highlighting
+    import re
+    pattern = re.compile(re.escape(search_query), re.IGNORECASE)
+    highlighted = pattern.sub(lambda m: f"<b><u>{m.group(0)}</u></b>", text)
+    return highlighted
+```
+
+App\utils\app_sorting.py:
+```python
+"""
+Application sorting functionality.
+Provides various sorting options for the application list.
+"""
+def sort_apps(apps: list, sort_type: str, blocked_apps: set = None) -> list:
+    """
+    Sort apps based on the specified sort type.
+    Args:
+        apps: List of app dictionaries with 'name' and 'path' keys
+        sort_type: Type of sorting to apply
+        blocked_apps: Set of blocked app paths (for status sorting)
+    Returns:
+        Sorted list of apps
+    """
+    if not apps:
+        return apps
+    blocked_apps = blocked_apps or set()
+    # Create a copy to avoid modifying the original list
+    sorted_apps = apps.copy()
+    if sort_type == "Name (A-Z)":
+        sorted_apps.sort(key=lambda app: app.get("name", "").lower())
+    elif sort_type == "Name (Z-A)":
+        sorted_apps.sort(key=lambda app: app.get("name", "").lower(), reverse=True)
+    elif sort_type == "Status (Blocked First)":
+        # Blocked apps first, then allowed apps (both sorted by name)
+        sorted_apps.sort(key=lambda app: (
+            app.get("path", "") not in blocked_apps,  # False (blocked) comes before True (allowed)
+            app.get("name", "").lower()
+        ))
+    elif sort_type == "Status (Allowed First)":
+        # Allowed apps first, then blocked apps (both sorted by name)
+        sorted_apps.sort(key=lambda app: (
+            app.get("path", "") in blocked_apps,  # False (allowed) comes before True (blocked)
+            app.get("name", "").lower()
+        ))
+    return sorted_apps
+def get_sort_options() -> list:
+    """
+    Get available sorting options.
+    Returns:
+        List of sort option strings
+    """
+    return [
+        "Name (A-Z)",
+        "Name (Z-A)",
+        "Status (Blocked First)",
+        "Status (Allowed First)"
+    ]
+def get_default_sort() -> str:
+    """
+    Get the default sort option.
+    Returns:
+        Default sort option string
+    """
+    return "Name (A-Z)"
 ```
 
 App\utils\naming_helper.py:

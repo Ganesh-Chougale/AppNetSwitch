@@ -1,11 +1,10 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
+    datas=[('Extras/File_Icon.ico', 'Extras')],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
@@ -14,6 +13,7 @@ a = Analysis(
     noarchive=False,
     optimize=0,
 )
+
 pyz = PYZ(a.pure)
 
 exe = EXE(

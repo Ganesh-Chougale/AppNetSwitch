@@ -27,5 +27,6 @@ git push origin main
 ```bash
 source ./App/.venv/Scripts/activate
 cd App
-python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
+# python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
+python -m PyInstaller appnetswitch.spec
 ```  

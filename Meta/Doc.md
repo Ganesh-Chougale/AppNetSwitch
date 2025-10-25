@@ -37,9 +37,9 @@ python ./App/main.py
 #### Windows  
 ```bash
 source ./App/.venv/Scripts/activate
-# bash (activate environment first)
 cd App
-python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
+# python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
+python -m PyInstaller appnetswitch.spec
 ```  
 
 ### Git Pushes

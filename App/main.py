@@ -166,8 +166,18 @@ if __name__ == "__main__":
         sys.exit(1)
         
     app = QApplication(sys.argv)
-    app.setWindowIcon(QIcon("Extras/File_Icon.ico"))  # 👈 Add this line
+
+    # ✅ Universal icon path fix (works for both .py and .exe)
+    if getattr(sys, 'frozen', False):
+        app_path = sys._MEIPASS
+    else:
+        app_path = os.path.dirname(os.path.abspath(__file__))
+
+    icon_path = os.path.join(app_path, "Extras", "File_Icon.ico")
+    app_icon = QIcon(icon_path)
+    app.setWindowIcon(app_icon)
 
     window = MainWindow()
+    window.setWindowIcon(app_icon)  # ✅ Ensures top-left & taskbar icon both change
     window.show()
     sys.exit(app.exec())
