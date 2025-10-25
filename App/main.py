@@ -6,6 +6,7 @@ from threading import Thread
 from functools import partial
 from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow # CRITICAL FIX: Import QMainWindow
 from PyQt6.QtCore import QTimer
+from PyQt6.QtGui import QIcon
 from ui_main import Ui_MainWindow
 from firewall import block_app, unblock_app
 from utils.app_manager import get_running_apps
@@ -165,6 +166,8 @@ if __name__ == "__main__":
         sys.exit(1)
         
     app = QApplication(sys.argv)
+    app.setWindowIcon(QIcon("Extras/File_Icon.ico"))  # 👈 Add this line
+
     window = MainWindow()
     window.show()
     sys.exit(app.exec())

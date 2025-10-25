@@ -185,11 +185,18 @@ class MainWindow(QMainWindow):
         self.reapply_blocked()
     def refresh_app_list(self):
         try:
-            self.app_list = get_running_apps()
+            # Get the current filter selection from the UI
+            filter_type = self.ui.app_filter.currentText().lower().replace(' apps only', '')
+            if filter_type == 'all apps':
+                filter_type = 'all'
+            # Get apps with the current filter
+            self.app_list = get_running_apps(filter_type)
             self.app_data_map = {app["path"]: app for app in self.app_list}
-            # CRITICAL FIX: Call populate_app_list on the ui instance
+            # Update the UI with the filtered list
             self.ui.populate_app_list(self.app_list, self.blocked, self.toggle_internet)
-            self.ui.status_label.setText(f"Listed {len(self.app_list)} running user apps.")
+            # Update status label with filter info
+            filter_text = filter_type.capitalize()
+            self.ui.status_label.setText(f"Showing {len(self.app_list)} {filter_text} apps")
         except Exception as e:
             print("[ERROR] refresh_app_list:", e)
             traceback.print_exc()
@@ -245,10 +252,34 @@ class MainWindow(QMainWindow):
         except Exception as e:
             print("[ERROR] refresh:", e)
             traceback.print_exc()
+def is_admin():
+    """Check if the current user has admin privileges"""
+    try:
+        return ctypes.windll.shell32.IsUserAnAdmin()
+    except:
+        return False
+def run_as_admin():
+    """Relaunch the script with admin privileges"""
+    if platform.system().lower() != 'windows':
+        return False
+    if is_admin():
+        return False  # Already running as admin
+    # Re-run the program with admin rights
+    ctypes.windll.shell32.ShellExecuteW(
+        None, "runas", sys.executable, " ".join(sys.argv), None, 1
+    )
+    return True
 if __name__ == "__main__":
+    # Add Windows-specific imports
+    if platform.system().lower() == 'windows':
+        import ctypes
+        # Try to elevate if not admin
+        if not is_admin():
+            print("Requesting administrator privileges...")
+            if run_as_admin():
+                sys.exit(0)  # Exit the non-elevated instance
     os_name = platform.system().lower()
-    # Permission check
-    is_admin = False
+    is_admin = True  # If we get here, we're either admin or not on Windows
     if os_name == "windows":
         import ctypes
         is_admin = ctypes.windll.shell32.IsUserAnAdmin()
@@ -272,7 +303,7 @@ App\ui_main.py:
 ```python
 from PyQt6.QtWidgets import (
     QMainWindow, QWidget, QVBoxLayout, QLabel, QPushButton,
-    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy
+    QHBoxLayout, QScrollArea, QCheckBox, QSizePolicy, QComboBox
 )
 from PyQt6.QtCore import Qt, QRect, QSize, QPropertyAnimation, QEasingCurve, pyqtProperty, pyqtSignal
 from PyQt6.QtGui import QPainter, QColor, QBrush, QPen
@@ -368,8 +399,10 @@ class ToggleSwitch(QCheckBox):
 # ... (rest of App/ui_main.py remains the same)
 class Ui_MainWindow:
     def setupUi(self, MainWindow):
+        self.main_window = MainWindow  # Store reference to main window
+        MainWindow.setObjectName("MainWindow")
         MainWindow.setWindowTitle("AppNetSwitch")
-        MainWindow.resize(700, 500)
+        MainWindow.resize(800, 600)
         MainWindow.setMinimumSize(600, 400)
         self.central_widget = QWidget(MainWindow)
         MainWindow.setCentralWidget(self.central_widget)
@@ -378,11 +411,30 @@ class Ui_MainWindow:
         self.main_layout.setSpacing(10)
         # Header
         header_layout = QHBoxLayout()
-        self.refresh_btn = QPushButton("Refresh")
-        self.exit_btn = QPushButton("Exit")
+        # Left side: Refresh button
+        self.refresh_btn = QPushButton("🔄 Refresh")
+        self.refresh_btn.setToolTip("Refresh the list of running applications")
+        # Center: App filter dropdown
+        filter_layout = QHBoxLayout()
+        filter_label = QLabel("Show:")
+        self.app_filter = QComboBox()
+        self.app_filter.addItems(["All Apps", "User Apps Only", "System Apps Only"])
+        self.app_filter.setCurrentIndex(0)  # Default to "All Apps"
+        self.app_filter.setFixedWidth(150)
+        filter_layout.addWidget(filter_label)
+        filter_layout.addWidget(self.app_filter)
+        # Right side: Exit button
+        self.exit_btn = QPushButton("❌ Exit")
+        # Add widgets to header
         header_layout.addWidget(self.refresh_btn)
         header_layout.addStretch()
+        header_layout.addLayout(filter_layout)
+        header_layout.addStretch()
         header_layout.addWidget(self.exit_btn)
+        # Set default filter to 'User Apps Only' (index 1)
+        self.app_filter.setCurrentIndex(1)
+        # Connect filter change signal
+        self.app_filter.currentTextChanged.connect(self.on_filter_changed)
         self.main_layout.addLayout(header_layout)
         # Scrollable app list
         self.scroll_area = QScrollArea()
@@ -401,6 +453,7 @@ class Ui_MainWindow:
         self.toggles = {}
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
+        from utils.app_filter import categorize_apps
         self.toggles.clear()
         # Clear previous list completely
         while self.scroll_layout.count() > 0:
@@ -414,57 +467,79 @@ class Ui_MainWindow:
                     if child.widget():
                         child.widget().deleteLater()
         if not apps:
-            self.scroll_layout.addWidget(QLabel("No active user apps found."))
+            self.scroll_layout.addWidget(QLabel("No applications found matching the current filter."))
             self.scroll_layout.addStretch()
             return
-        for index, app in enumerate(apps):
-            # Create a custom row widget with hover support
-            row_widget = AppRowWidget()
-            row = QHBoxLayout(row_widget)
-            row.setContentsMargins(8, 8, 8, 8)
-            row.setSpacing(10)
-            icon_label = QLabel("🖥")
-            icon_label.setFixedSize(24, 24)
-            name_label = QLabel(app["name"])
-            name_label.setMinimumWidth(200)
-            name_label.setMaximumWidth(400)
-            name_label.setWordWrap(False)
-            # Responsive font size
-            font = name_label.font()
-            font.setPointSize(10)
-            name_label.setFont(font)
-            toggle = ToggleSwitch()
-            toggle.setChecked(app["path"] not in blocked)
-            toggle.setFixedSize(50, 25)
-            # Store app info in toggle for later retrieval
-            toggle.app_path = app["path"]
-            toggle.app_name = app["name"]
-            toggle.on_toggle_callback = on_toggle
-            # Connect userToggled signal (only fires on user clicks)
-            toggle.userToggled.connect(partial(self._on_toggle_user_toggled, toggle))
-            self.toggles[app["path"]] = toggle
-            # Add widgets to row: icon, name, stretch, toggle
-            row.addWidget(icon_label)
-            row.addWidget(name_label)
-            row.addStretch()
-            row.addWidget(toggle)
-            # Apply alternating row colors (Option 3)
-            # Even rows: white, Odd rows: light gray
-            if index % 2 == 0:
-                row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
-                row_widget.normal_color = "#FFFFFF"
-                row_widget.hover_color = "#E8E8E8"
-            else:
-                row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
-                row_widget.normal_color = "#F5F5F5"
-                row_widget.hover_color = "#EBEBEB"
-            # Store reference to UI instance for hover callbacks
-            row_widget.ui_instance = self
-            # Add row to scroll layout
-            self.scroll_layout.addWidget(row_widget)
-        # Add final stretch to push everything to the top
-        self.scroll_layout.addStretch()
-        self.status_label.setText(f"Listed {len(apps)} running user apps.")
+        # Categorize apps
+        user_apps, system_apps = categorize_apps(apps)
+        # Add user apps section
+        if user_apps:
+            user_header = QLabel("<b>User Applications</b>")
+            user_header.setStyleSheet("color: #2c3e50; margin-top: 10px; margin-bottom: 5px;")
+            self.scroll_layout.addWidget(user_header)
+            for app in user_apps:
+                self._add_app_row(app, blocked, on_toggle, is_system=False)
+        # Add system apps section if there are any
+        if system_apps:
+            system_header = QLabel("<b>System Applications</b>")
+            system_header.setStyleSheet("color: #7f8c8d; margin-top: 15px; margin-bottom: 5px;")
+            self.scroll_layout.addWidget(system_header)
+            for app in system_apps:
+                self._add_app_row(app, blocked, on_toggle, is_system=True)
+    def _add_app_row(self, app, blocked, on_toggle, is_system=False):
+        from functools import partial
+        # Create a custom row widget with hover support
+        row_widget = AppRowWidget()
+        row = QHBoxLayout(row_widget)
+        row.setContentsMargins(8, 8, 8, 8)
+        row.setSpacing(10)
+        # Apply alternating row colors
+        row_count = self.scroll_layout.count()
+        if row_count % 2 == 0:
+            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; padding: 5px; }")
+            row_widget.normal_color = "#FFFFFF"
+            row_widget.hover_color = "#E8E8E8"
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; padding: 5px; }")
+            row_widget.normal_color = "#F5F5F5"
+            row_widget.hover_color = "#EBEBEB"
+        # App icon (using emoji for now)
+        icon = "🛠️" if is_system else "🖥️"
+        icon_label = QLabel(icon)
+        icon_label.setFixedSize(24, 24)
+        # App name with tooltip showing full path
+        name_label = QLabel(app["name"])
+        name_label.setToolTip(f"{app['name']}\n{app['path']}")
+        name_label.setMinimumWidth(200)
+        name_label.setMaximumWidth(400)
+        name_label.setWordWrap(False)
+        # Style system apps differently
+        if is_system:
+            name_label.setStyleSheet("color: #7f8c8d;")
+        # Responsive font size
+        font = name_label.font()
+        font.setPointSize(10)
+        name_label.setFont(font)
+        # Toggle switch
+        toggle = ToggleSwitch()
+        toggle.setChecked(app["path"] not in blocked)
+        toggle.setFixedSize(50, 25)
+        # Add widgets to row
+        row.addWidget(icon_label)
+        row.addWidget(name_label, 1)  # Allow name to expand
+        row.addStretch()
+        row.addWidget(toggle)
+        # Store app info in toggle for later retrieval
+        toggle.app_path = app["path"]
+        toggle.app_name = app["name"]
+        # Connect toggle signal with proper parameter handling
+        toggle.userToggled.connect(lambda checked, path=app["path"], name=app["name"]: on_toggle(path, name, checked))
+        # Store reference to toggle
+        self.toggles[app["path"]] = toggle
+        # Store reference to UI instance for hover callbacks
+        row_widget.ui_instance = self
+        # Add row to layout
+        self.scroll_layout.addWidget(row_widget)
     def _on_row_enter(self, row_widget):
         """Handle mouse enter event for row highlighting"""
         # Highlight on hover - darker shade
@@ -473,19 +548,93 @@ class Ui_MainWindow:
         else:
             row_widget.setStyleSheet("QWidget { background-color: #EBEBEB; }")
     def _on_row_leave(self, row_widget):
-        """Handle mouse leave event - restore original color"""
-        # Restore original alternating color
-        row_widget.setStyleSheet(row_widget.original_stylesheet)
+        """Handle mouse leave event for row highlighting"""
+        # Restore normal background
+        if row_widget.is_even:
+            row_widget.setStyleSheet("QWidget { background-color: #FFFFFF; }")
+        else:
+            row_widget.setStyleSheet("QWidget { background-color: #F5F5F5; }")
+    def on_filter_changed(self, filter_text):
+        """Handle filter dropdown changes"""
+        # Call refresh directly on the main window
+        if hasattr(self.main_window, 'refresh'):
+            self.main_window.refresh()
     def _on_toggle_user_toggled(self, toggle, new_state):
         """Callback for user-initiated toggle changes"""
         print(f"[UI] Toggle clicked for {toggle.app_name}: new_state={new_state} (1=allowed, 0=blocked)")
         toggle.on_toggle_callback(toggle.app_path, toggle.app_name, new_state)
 ```
 
+App\utils\app_filter.py:
+```python
+"""
+app_filter.py - Provides functionality to filter and categorize running applications.
+"""
+import os
+# Known system paths and processes for filtering
+SYSTEM_PATHS = [
+    "c:\\windows\\system32", "c:\\windows\\syswow64", "c:\\windows\\winsxs",
+    "c:\\program files\\windowsapps", "c:\\program files (x86)\\windowsapps",
+    "/usr/bin/", "/usr/sbin/", "/lib/", "/sbin/", "/dev/", "/proc/"
+]
+SYSTEM_NAMES = [
+    "svchost", "system", "init", "kworker", "systemd", "explorer.exe",
+    "winlogon.exe", "csrss.exe", "smss.exe", "lsass.exe", "dbus-daemon",
+    "gnome-shell", "kdeinit5", "xfce4-session", "services.exe", "lsm.exe",
+    "wininit.exe", "taskhostw.exe", "dwm.exe", "fontdrvhost.exe"
+]
+def is_system_path(path: str) -> bool:
+    """Check if a path is in a system directory."""
+    if not path or not isinstance(path, str):
+        return False
+    path_lower = path.lower()
+    return any(path_lower.startswith(sys_path.lower()) for sys_path in SYSTEM_PATHS)
+def is_system_process(proc_info: dict) -> bool:
+    """Check if a process is a known system or background process."""
+    if not proc_info.get('exe') or not proc_info.get('name'):
+        return True
+    exe_path = proc_info['exe'].lower()
+    name = proc_info['name'].lower()
+    # Check system paths and names
+    if (is_system_path(exe_path) or 
+        any(system_name in name for system_name in SYSTEM_NAMES) or
+        name.endswith(('.dll', '.sys', '.drv'))):
+        return True
+    # Allow common desktop environment components
+    if os.path.basename(exe_path) in ("bash", "zsh", "gnome-terminal", "konsole"):
+        return False
+    return False
+def filter_apps(apps, filter_type="all"):
+    """
+    Filter applications based on the specified filter type.
+    Args:
+        apps: List of app dictionaries (must include 'is_system' key)
+        filter_type: "all", "user", or "system"
+    Returns:
+        Filtered list of apps
+    """
+    if filter_type == "user":
+        return [app for app in apps if not app.get('is_system', False)]
+    elif filter_type == "system":
+        return [app for app in apps if app.get('is_system', False)]
+    return apps
+def categorize_apps(apps):
+    """
+    Categorize apps into user and system apps.
+    Returns:
+        Tuple of (user_apps, system_apps)
+    """
+    user_apps = [app for app in apps if not app.get('is_system', False)]
+    system_apps = [app for app in apps if app.get('is_system', False)]
+    return user_apps, system_apps
+```
+
 App\utils\app_manager.py:
 ```python
 import psutil
 import os
+from .naming_helper import get_app_display_name
+from .app_filter import is_system_process, is_system_path
 # Updated list of known system paths and processes for better filtering
 SYSTEM_PATHS = [
     "c:\\windows\\system32", "c:\\windows\\syswow64", "/usr/bin/", "/usr/sbin/",
@@ -496,26 +645,15 @@ SYSTEM_NAMES = [
     "winlogon.exe", "csrss.exe", "smss.exe", "lsass.exe", "dbus-daemon",
     "gnome-shell", "kdeinit5", "xfce4-session"
 ]
-def is_system_process(proc_info: dict) -> bool:
-    """Checks if a process is a known system or background process."""
-    if not proc_info.get('exe'):
-        return True
-    exe_path = proc_info['exe'].lower()
-    name = proc_info['name'].lower()
-    # Filter by common system paths
-    if any(exe_path.startswith(path.lower()) for path in SYSTEM_PATHS):
-        # Allow common desktop environment components (e.g., shell/terminal)
-        if os.path.basename(exe_path) not in ("bash", "zsh", "gnome-terminal", "konsole"):
-            return True
-    # Filter by common system names
-    if name in SYSTEM_NAMES or name.endswith(".dll"):
-        return True
-    return False
-def get_running_apps():
+def get_running_apps(filter_type="all"):
     """
-    Scans for currently running user applications, filtering system processes.
-    Returns a list of dicts with name, path, and pid.
+    Scans for currently running applications.
+    Args:
+        filter_type: "all" (default), "user", or "system"
+    Returns:
+        List of dicts with name, path, pid, and is_system flag
     """
+    from .app_filter import filter_apps
     apps = []
     seen_paths = set()
     for proc in psutil.process_iter(['name', 'exe', 'username', 'pid']):
@@ -524,21 +662,136 @@ def get_running_apps():
             # Must have an executable path and a username associated
             if not proc_info.get('exe') or not proc_info.get('username'):
                 continue
-            if is_system_process(proc_info):
-                continue
             exe = proc_info['exe']
-            # Filter out multiple instances of the same executable path
+            # Skip if we've seen this executable path before
             if exe in seen_paths:
                 continue
-            seen_paths.add(exe)
+            # Check if this is a system process
+            is_system = is_system_process(proc_info) or is_system_path(exe)
+            display_name = get_app_display_name(exe, proc_info['name'])
             apps.append({
-                "name": proc_info['name'],
+                "name": display_name,
                 "path": exe,
-                "pid": proc_info['pid'] # Required for Linux blocking
+                "pid": proc_info['pid'],
+                "is_system": is_system
             })
-        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            seen_paths.add(exe)
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             continue
+    # Apply filter
+    apps = filter_apps(apps, filter_type)
+    # Sort apps: user apps first, then system apps, then alphabetically
+    apps.sort(key=lambda x: (x["is_system"], x["name"].lower()))
     return apps
+```
+
+App\utils\naming_helper.py:
+```python
+import platform
+import ctypes
+import re
+from ctypes import wintypes
+def parse_executable_name(exe_name: str) -> str:
+    """
+    Intelligently parse executable name to extract meaningful words.
+    Examples:
+    - RtkAudioService64.exe -> Realtek Audio Service
+    - RAVBg64.exe -> Realtek Audio Console
+    - mysqld.exe -> MySQL Server
+    - RtkNGUI64.exe -> Realtek Audio Manager
+    """
+    # Remove .exe extension
+    name = exe_name.replace('.exe', '').replace('.dll', '')
+    # Known abbreviation mappings
+    abbrev_map = {
+        'rtk': 'Realtek',
+        'rav': 'Realtek Audio',
+        'mysql': 'MySQL',
+        'svc': 'Service',
+        'srv': 'Server',
+        'ui': 'UI',
+        'ux': 'Experience',
+        'bg': 'Background',
+        'gui': 'GUI',
+        'ngui': 'Audio Manager',
+    }
+    # Try to split camelCase and snake_case
+    # Insert space before uppercase letters (except at start)
+    spaced = re.sub(r'([a-z])([A-Z])', r'\1 \2', name)
+    # Replace underscores with spaces
+    spaced = spaced.replace('_', ' ')
+    # Remove numbers and special characters at the end
+    spaced = re.sub(r'\d+$', '', spaced).strip()
+    # Split into words
+    words = spaced.split()
+    # Process each word
+    processed_words = []
+    for word in words:
+        word_lower = word.lower()
+        # Check if word matches abbreviation
+        matched = False
+        for abbrev, full_form in abbrev_map.items():
+            if word_lower == abbrev or word_lower.startswith(abbrev):
+                processed_words.append(full_form)
+                matched = True
+                break
+        # If no abbreviation match and word is meaningful (not just numbers/symbols)
+        if not matched and word and not word.isdigit():
+            # Capitalize first letter
+            processed_words.append(word.capitalize())
+    # Join and clean up
+    result = ' '.join(processed_words)
+    # Remove duplicates while preserving order
+    seen = set()
+    final_words = []
+    for word in result.split():
+        word_lower = word.lower()
+        if word_lower not in seen:
+            final_words.append(word)
+            seen.add(word_lower)
+    result = ' '.join(final_words)
+    # Return original if parsing didn't help
+    return result if result and len(result) > 2 else exe_name
+def get_app_display_name(exe_path: str, fallback_name: str) -> str:
+    """
+    Extracts the product name from Windows executable metadata using Windows API.
+    Falls back to intelligent parsing of the executable name if metadata is unavailable.
+    """
+    if platform.system().lower() != "windows":
+        return fallback_name
+    try:
+        # Windows API functions
+        GetFileVersionInfoSize = ctypes.windll.version.GetFileVersionInfoSizeW
+        GetFileVersionInfo = ctypes.windll.version.GetFileVersionInfoW
+        VerQueryValue = ctypes.windll.version.VerQueryValueW
+        # Get version info size
+        size = GetFileVersionInfoSize(exe_path, None)
+        if size == 0:
+            # No version info, try intelligent parsing
+            return parse_executable_name(fallback_name)
+        # Get version info
+        version_info = ctypes.create_string_buffer(size)
+        GetFileVersionInfo(exe_path, None, size, version_info)
+        # Query for ProductName
+        product_name_ptr = ctypes.c_wchar_p()
+        product_name_len = wintypes.UINT()
+        if VerQueryValue(version_info, r'\StringFileInfo\040904B0\ProductName', 
+                        ctypes.byref(product_name_ptr), ctypes.byref(product_name_len)):
+            product_name = product_name_ptr.value
+            if product_name and product_name.strip() and product_name.lower() != 'unknown':
+                return product_name.strip()
+        # Query for FileDescription
+        file_desc_ptr = ctypes.c_wchar_p()
+        file_desc_len = wintypes.UINT()
+        if VerQueryValue(version_info, r'\StringFileInfo\040904B0\FileDescription', 
+                        ctypes.byref(file_desc_ptr), ctypes.byref(file_desc_len)):
+            file_desc = file_desc_ptr.value
+            if file_desc and file_desc.strip() and file_desc.lower() != 'unknown':
+                return file_desc.strip()
+    except Exception:
+        pass
+    # Fallback to intelligent parsing
+    return parse_executable_name(fallback_name)
 ```
 
 App\utils\settings_manager.py:
