@@ -1,8 +1,3 @@
-"""
-About Us Dialog for AppNetSwitch
-Displays information about the application with clickable SVG and social links
-"""
-
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDesktopServices, QCursor
@@ -10,7 +5,6 @@ import webbrowser
 
 
 class AboutDialog(QDialog):
-    """About Us dialog with SVG logo and social links"""
     
     def __init__(self, parent=None, portfolio_url="", github_url="", linkedin_url=""):
         super().__init__(parent)
@@ -76,6 +70,19 @@ class AboutDialog(QDialog):
         """)
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(version_label)
+        
+        # Developer info
+        developer_label = QLabel("Developed by Ganesh Chougale")
+        developer_label.setStyleSheet("""
+            QLabel {
+                font-size: 13px;
+                color: #2c3e50;
+                font-weight: bold;
+                padding: 5px;
+            }
+        """)
+        developer_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(developer_label)
         
         # Social links section
         links_label = QLabel("Connect with me:")
