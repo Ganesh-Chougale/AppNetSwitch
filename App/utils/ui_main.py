@@ -147,7 +147,8 @@ class Ui_MainWindow:
         filter_layout.addWidget(filter_label)
         filter_layout.addWidget(self.app_filter)
         
-        # Right side: Exit button
+        # Right side: About and Exit buttons
+        self.about_btn = QPushButton("ℹ️ About")
         self.exit_btn = QPushButton("❌ Exit")
         
         # Add widgets to header
@@ -155,6 +156,7 @@ class Ui_MainWindow:
         header_layout.addStretch()
         header_layout.addLayout(filter_layout)
         header_layout.addStretch()
+        header_layout.addWidget(self.about_btn)
         header_layout.addWidget(self.exit_btn)
         
         # Set default filter to 'User Apps Only' (index 1)

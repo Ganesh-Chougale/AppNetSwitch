@@ -2,11 +2,15 @@
 """Simple test to verify toggle switch works"""
 
 import sys
+import os
 from PyQt6.QtWidgets import QApplication, QMainWindow, QWidget, QVBoxLayout, QLabel
 from PyQt6.QtCore import Qt
 
+# Add parent directory to path so we can import from App folder
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+
 # Import the toggle switch
-from ui_main import ToggleSwitch
+from utils.ui_main import ToggleSwitch
 
 class TestWindow(QMainWindow):
     def __init__(self):

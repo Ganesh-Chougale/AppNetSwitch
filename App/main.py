@@ -4,10 +4,16 @@ import platform
 import traceback
 from threading import Thread
 from functools import partial
+
+# CRITICAL: Set WebEngine flags BEFORE any Qt imports to prevent UAC prompts
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--no-sandbox --disable-setuid-sandbox --disable-gpu --single-process"
+os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
+os.environ["QTWEBENGINE_REMOTE_DEBUGGING"] = "0"
 from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow # CRITICAL FIX: Import QMainWindow
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
-from ui_main import Ui_MainWindow
+from utils.ui_main import Ui_MainWindow
+from utils.about_us import AboutDialog
 from firewall import block_app, unblock_app
 from utils.app_manager import get_running_apps
 from utils.settings_manager import load_settings, save_settings
@@ -30,11 +36,22 @@ class MainWindow(QMainWindow):
         
         # Connect buttons (using self.ui prefix)
         self.ui.refresh_btn.clicked.connect(self.refresh)
+        self.ui.about_btn.clicked.connect(self.show_about)
         self.ui.exit_btn.clicked.connect(self.close)
         
         # Initial population
         self.refresh_app_list()
         self.reapply_blocked()
+    
+    def show_about(self):
+        """Show the About Us dialog"""
+        about_dialog = AboutDialog(
+            self,
+            portfolio_url="https://ganesh-chougale.github.io/",
+            github_url="https://github.com/Ganesh-Chougale",
+            linkedin_url="https://www.linkedin.com/in/ganesh-chougale-512449215/"
+        )
+        about_dialog.exec()
         
     def refresh_app_list(self):
         try:
@@ -177,7 +194,9 @@ if __name__ == "__main__":
     app_icon = QIcon(icon_path)
     app.setWindowIcon(app_icon)
 
+    # Create and show main window
     window = MainWindow()
     window.setWindowIcon(app_icon)  # ✅ Ensures top-left & taskbar icon both change
     window.show()
+    
     sys.exit(app.exec())

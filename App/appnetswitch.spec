@@ -4,8 +4,11 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('Extras/File_Icon.ico', 'Extras')],
-    hiddenimports=[],
+    datas=[
+        ('Extras/File_Icon.ico', 'Extras'),
+        ('Extras/loading.svg', 'Extras')
+    ],
+    hiddenimports=['PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebEngineCore'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -36,4 +39,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     icon=['Extras\\File_Icon.ico'],
+    version='Extras/version_info.txt',
 )

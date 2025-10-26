@@ -5,8 +5,8 @@ import sys
 import os
 import platform
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(__file__))
+# Add parent directory to path so we can import from App folder
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from firewall import block_app, unblock_app
 from utils.app_manager import get_running_apps

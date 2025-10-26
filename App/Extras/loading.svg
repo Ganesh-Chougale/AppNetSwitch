@@ -1,0 +1,140 @@
+<svg viewBox="0 0 800 500" xmlns="http://www.w3.org/2000/svg"
+     xmlns:xlink="http://www.w3.org/1999/xlink">
+  <defs>
+    <!-- === GRADIENTS === -->
+    <radialGradient id="skyGrad" cx="50%" cy="30%" r="80%">
+      <stop offset="0%" stop-color="#0B0120"/>
+      <stop offset="100%" stop-color="#19033F"/>
+    </radialGradient>
+
+    <linearGradient id="roadGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#222"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+
+    <linearGradient id="textGlow" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#FF00FF"/>
+      <stop offset="50%" stop-color="#00FFFF"/>
+      <stop offset="100%" stop-color="#FF00FF"/>
+    </linearGradient>
+
+    <style>
+      svg { overflow: hidden; cursor: pointer; }
+
+      /* === MOON === */
+      .moon {
+        animation: moonGlow 3s ease-in-out infinite alternate;
+        filter: drop-shadow(0 0 15px #AEEAFF)
+                drop-shadow(0 0 30px #AEEAFF);
+        transition: transform 0.3s;
+      }
+      .moon:hover { transform: scale(1.1); }
+      @keyframes moonGlow {
+        0% { opacity: 0.8; transform: scale(1); }
+        100% { opacity: 1; transform: scale(1.05); }
+      }
+
+      /* === ROAD SURFACE === */
+      .road-surface { fill: url(#roadGrad); }
+
+      /* Center dashed line */
+      .lane {
+        stroke: #00FFFF;
+        stroke-width: 3;
+        stroke-dasharray: 40 60;
+        stroke-linecap: round;
+        animation: dashMove 0.25s linear infinite;
+      }
+      @keyframes dashMove { to { stroke-dashoffset: -100; } }
+
+      /* Side glow lines */
+      .side-line {
+        stroke: #FF00FF;
+        stroke-width: 3;
+        stroke-opacity: 0.9;
+        filter: drop-shadow(0 0 6px #FF00FF);
+      }
+
+      /* === HORIZON GRID === */
+      .horizon-lines line {
+        stroke: #CC00FF;
+        stroke-opacity: 0.6;
+        animation: roadFlow 0.5s linear infinite;
+      }
+      @keyframes roadFlow {
+        from { transform: scaleY(1) translateY(0); opacity: 0.8; }
+        to { transform: scaleY(1.4) translateY(80px); opacity: 0.4; }
+      }
+
+      /* === TITLE GLOW === */
+      .title, .miniTitle {
+        font-family: 'Orbitron', sans-serif;
+        text-anchor: middle;
+        dominant-baseline: middle;
+        fill: url(#textGlow);
+        animation: textPulse 2s ease-in-out infinite;
+        transition: transform 0.3s;
+      }
+      .title { font-size: 64px; }
+      .miniTitle { font-size: 32px; }
+
+      .title:hover, .miniTitle:hover {
+        transform: scale(1.1);
+      }
+
+      @keyframes textPulse {
+        0%,100% { filter: drop-shadow(0 0 10px #FF00FF)
+                          drop-shadow(0 0 25px #00FFFF); }
+        50% { filter: drop-shadow(0 0 20px #00FFFF)
+                      drop-shadow(0 0 45px #FF00FF); }
+      }
+
+      /* === BACKGROUND COLOR CYCLE === */
+      .sky {
+        animation: skyShift 8s ease-in-out infinite alternate;
+      }
+      @keyframes skyShift {
+        0% { fill: url(#skyGrad); }
+        100% { fill: #12022F; }
+      }
+    </style>
+  </defs>
+
+  <!-- === SKY === -->
+  <rect class="sky" width="100%" height="100%" fill="url(#skyGrad)"/>
+
+  <!-- === MOON (LinkedIn link) === -->
+  <a xlink:href="https://ganesh-chougale.github.io/" target="_blank">
+    <circle class="moon" cx="600" cy="100" r="50" fill="#E0E8FF"/>
+  </a>
+
+  <!-- === HORIZON GLOW === -->
+  <rect x="0" y="240" width="800" height="60" fill="#FF00FF" opacity="0.15"/>
+
+  <!-- === ROAD === -->
+  <g transform="translate(400,240)">
+    <polygon class="road-surface" points="-400,250 400,250 100,0 -100,0"/>
+    <line class="lane" x1="0" y1="0" x2="0" y2="250"/>
+    <line class="side-line" x1="-100" y1="0" x2="-400" y2="250"/>
+    <line class="side-line" x1="100" y1="0" x2="400" y2="250"/>
+  </g>
+
+  <!-- === MOVING HORIZON GRID === -->
+  <g class="horizon-lines">
+    <line x1="0" y1="280" x2="800" y2="280"/>
+    <line x1="0" y1="320" x2="800" y2="320"/>
+    <line x1="0" y1="360" x2="800" y2="360"/>
+    <line x1="0" y1="400" x2="800" y2="400"/>
+    <line x1="0" y1="440" x2="800" y2="440"/>
+    <line x1="0" y1="480" x2="800" y2="480"/>
+  </g>
+
+  <!-- === TITLES WITH LINKS === -->
+  <a xlink:href="https://www.linkedin.com/in/ganesh-chougale-512449215/" target="_blank">
+    <text x="400" y="150" class="title">Hori-Zone</text>
+  </a>
+
+  <a xlink:href="https://github.com/Ganesh-Chougale" target="_blank">
+    <text x="400" y="200" class="miniTitle">APP</text>
+  </a>
+</svg>

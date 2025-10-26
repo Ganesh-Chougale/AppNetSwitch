@@ -6,8 +6,8 @@ import os
 import platform
 import subprocess
 
-# Add parent directory to path
-sys.path.insert(0, os.path.dirname(__file__))
+# Add parent directory to path so we can import from App folder
+sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 def test_netsh_commands():
     """Test if netsh commands work on Windows"""

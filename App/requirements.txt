@@ -5,8 +5,9 @@ pillow
 psutil
 pyinstaller
 pyinstaller-hooks-contrib
-PyQt6
-PyQt6-Qt6
-PyQt6_sip
+PyQt6==6.10.0
+PyQt6-Qt6==6.10.0
+PyQt6_sip==13.10.2
+PyQt6-WebEngine==6.10.0
 pywin32-ctypes
 setuptools
