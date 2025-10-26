@@ -45,7 +45,7 @@ class AboutDialog(QDialog):
         
         # App description
         description = QLabel(
-            "AppNetSwitch is a powerful application firewall manager\n"
+            "Application Internet Switch is a powerful app manager\n"
             "that allows you to control network access for your applications."
         )
         description.setStyleSheet("""
