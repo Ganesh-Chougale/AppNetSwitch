@@ -5,14 +5,15 @@ a = Analysis(
     pathex=[],
     binaries=[],
     datas=[
-        ('Extras/File_Icon.ico', 'Extras'),
-        ('Extras/loading.svg', 'Extras')
+        ('Extras/File_Icon.ico', 'Extras')
     ],
-    hiddenimports=['PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebEngineCore'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebEngineCore', 'PyQt6.QtWebEngine', 
+              'matplotlib', 'numpy', 'pandas', 'scipy', 'PIL', 'pillow',
+              'tkinter', 'unittest', 'email', 'http', 'xml', 'pydoc'],
     noarchive=False,
     optimize=0,
 )

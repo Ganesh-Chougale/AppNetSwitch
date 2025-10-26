@@ -4,12 +4,7 @@ import platform
 import traceback
 from threading import Thread
 from functools import partial
-
-# CRITICAL: Set WebEngine flags BEFORE any Qt imports to prevent UAC prompts
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--no-sandbox --disable-setuid-sandbox --disable-gpu --single-process"
-os.environ["QTWEBENGINE_DISABLE_SANDBOX"] = "1"
-os.environ["QTWEBENGINE_REMOTE_DEBUGGING"] = "0"
-from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow # CRITICAL FIX: Import QMainWindow
+from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
 from utils.ui_main import Ui_MainWindow

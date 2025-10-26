@@ -4,37 +4,9 @@ Displays information about the application with clickable SVG and social links
 """
 
 from PyQt6.QtWidgets import QDialog, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
-from PyQt6.QtCore import Qt, QSize, QUrl
+from PyQt6.QtCore import Qt
 from PyQt6.QtGui import QDesktopServices, QCursor
-import os
-import sys
 import webbrowser
-
-# Try to import WebEngine for animated SVG support
-try:
-    from PyQt6.QtWebEngineWidgets import QWebEngineView
-    from PyQt6.QtWebEngineCore import QWebEnginePage
-    WEBENGINE_AVAILABLE = True
-    print("[INFO] WebEngine loaded successfully")
-except ImportError as e:
-    WEBENGINE_AVAILABLE = False
-    print(f"[WARNING] PyQt6 WebEngine not available: {e}")
-except Exception as e:
-    WEBENGINE_AVAILABLE = False
-    print(f"[ERROR] WebEngine import failed: {e}")
-
-
-class CustomWebEnginePage(QWebEnginePage):
-    """Custom page that opens external links in browser"""
-    
-    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
-        # If it's a link click (not the initial page load)
-        if nav_type == QWebEnginePage.NavigationType.NavigationTypeLinkClicked:
-            # Open in external browser
-            QDesktopServices.openUrl(url)
-            print(f"[ABOUT] Opening URL in browser: {url.toString()}")
-            return False  # Don't navigate in the web view
-        return True  # Allow initial page load
 
 
 class AboutDialog(QDialog):
@@ -64,45 +36,18 @@ class AboutDialog(QDialog):
         layout.setContentsMargins(30, 30, 30, 30)
         layout.setSpacing(20)
         
-        # Add SVG logo with animation support
-        svg_path = get_about_svg_path()
-        print(f"[ABOUT] SVG path: {svg_path}")
-        print(f"[ABOUT] SVG exists: {os.path.exists(svg_path)}")
-        print(f"[ABOUT] WebEngine available: {WEBENGINE_AVAILABLE}")
-        
-        if WEBENGINE_AVAILABLE and os.path.exists(svg_path):
-            # Use WebEngine to display animated SVG with clickable links
-            web_view = QWebEngineView()
-            web_view.setMinimumSize(500, 300)
-            web_view.setMaximumSize(550, 350)
-            
-            # Set custom page to handle link clicks
-            custom_page = CustomWebEnginePage(web_view)
-            web_view.setPage(custom_page)
-            
-            # Load SVG file
-            svg_url = QUrl.fromLocalFile(os.path.abspath(svg_path))
-            web_view.load(svg_url)
-            
-            # Make background transparent
-            web_view.page().setBackgroundColor(Qt.GlobalColor.transparent)
-            
-            layout.addWidget(web_view, alignment=Qt.AlignmentFlag.AlignCenter)
-            print(f"[ABOUT] SVG loaded in WebEngine with custom link handler")
-        else:
-            # Fallback if WebEngine not available
-            print(f"[ABOUT] Using fallback text")
-            logo_label = QLabel("AppNetSwitch")
-            logo_label.setStyleSheet("""
-                QLabel {
-                    font-size: 36px;
-                    font-weight: bold;
-                    color: #2c3e50;
-                    padding: 20px;
-                }
-            """)
-            logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
-            layout.addWidget(logo_label)
+        # App logo
+        logo_label = QLabel("AppNetSwitch")
+        logo_label.setStyleSheet("""
+            QLabel {
+                font-size: 36px;
+                font-weight: bold;
+                color: #2c3e50;
+                padding: 20px;
+            }
+        """)
+        logo_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        layout.addWidget(logo_label)
         
         # App description
         description = QLabel(
@@ -237,18 +182,3 @@ class AboutDialog(QDialog):
             print(f"[ABOUT] Opening URL: {url}")
         except Exception as e:
             print(f"[ERROR] Failed to open URL: {e}")
-
-
-def get_about_svg_path():
-    """Get the correct path to the about SVG based on execution mode"""
-    if getattr(sys, 'frozen', False):
-        # If the application is frozen (compiled with PyInstaller)
-        application_path = sys._MEIPASS
-        svg_path = os.path.join(application_path, 'Extras', 'loading.svg')
-    else:
-        # If running from source - get the App directory path
-        # This file is in App/utils/, so go up one level to App/
-        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        svg_path = os.path.join(app_dir, 'Extras', 'loading.svg')
-    
-    return svg_path
