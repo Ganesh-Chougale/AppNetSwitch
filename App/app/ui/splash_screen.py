@@ -118,11 +118,11 @@ def get_splash_svg_path():
     if getattr(sys, 'frozen', False):
         # If the application is frozen (compiled with PyInstaller)
         application_path = sys._MEIPASS
-        svg_path = os.path.join(application_path, 'Extras', 'loading.svg')
+        svg_path = os.path.join(application_path, 'ui', 'resources', 'loading.svg')
     else:
-        # If running from source - get the App directory path
-        # This file is in App/utils/, so go up one level to App/
-        app_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        svg_path = os.path.join(app_dir, 'Extras', 'loading.svg')
+        # If running from source - get the ui/resources directory path
+        # This file is in app/ui/, so resources is in the same directory
+        ui_dir = os.path.dirname(os.path.abspath(__file__))
+        svg_path = os.path.join(ui_dir, 'resources', 'loading.svg')
     
     return svg_path

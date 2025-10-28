@@ -8,7 +8,7 @@ source ./App/.venv/Scripts/activate
 ```  
 ### 2. Install dependancies  
 ```bash
-pip install pyqt6 psutil pyinstaller Pillow
+pip install Pillow altgraph packaging pefile psutil pyinstaller pyinstaller-hooks-contrib PyQt6 PyQt6-Qt6 PyQt6_sip pywin32-ctypes setuptools
 ```  
 ```bash
 # Verify installation
@@ -25,12 +25,12 @@ node Codex/Runner.js "App"
 ```bash
 # for bash
 source ./App/.venv/Scripts/activate
-python ./App/main.py 
+python -m app.main
 ```  
 ```bash
 # for powershelll
 .\App\.venv\Scripts\Activate.ps1
-python ./App/main.py 
+python -m app.main
 ```  
 
 ### 5. Create app
@@ -38,7 +38,6 @@ python ./App/main.py
 ```bash
 source ./App/.venv/Scripts/activate
 cd App
-# python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
 python -m PyInstaller appnetswitch.spec
 ```  
 

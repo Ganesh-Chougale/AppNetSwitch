@@ -69,7 +69,7 @@ def test_firewall_module():
     print("\n\n[TEST] Testing firewall module...")
     
     try:
-        from firewall import block_app, unblock_app
+        from app.core.firewall import block_app, unblock_app
         print("[PASS] Firewall module imported successfully")
         
         # Test with a dummy path

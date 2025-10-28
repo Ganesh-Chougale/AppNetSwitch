@@ -1,19 +1,24 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 a = Analysis(
-    ['main.py'],
-    pathex=[],
+    ['app/main.py'],
+    pathex=['.'],
     binaries=[],
     datas=[
-        ('Extras/File_Icon.ico', 'Extras')
+        ('app/ui/resources/File_Icon.ico', 'app/ui/resources'),
+        ('app/ui/resources/File_Icon.png', 'app/ui/resources'),
+        ('app/ui/resources/loading.svg', 'app/ui/resources'),
+        ('app/data/settings.json', 'app/data'),
     ],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebEngineCore', 'PyQt6.QtWebEngine', 
-              'matplotlib', 'numpy', 'pandas', 'scipy', 'PIL', 'pillow',
-              'tkinter', 'unittest', 'email', 'http', 'xml', 'pydoc'],
+    excludes=[
+        'PyQt6.QtWebEngineWidgets', 'PyQt6.QtWebEngineCore', 'PyQt6.QtWebEngine',
+        'matplotlib', 'numpy', 'pandas', 'scipy', 'PIL', 'pillow',
+        'tkinter', 'unittest', 'email', 'http', 'xml', 'pydoc'
+    ],
     noarchive=False,
     optimize=0,
 )
@@ -39,6 +44,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=['Extras\\File_Icon.ico'],
-    version='Extras/version_info.txt',
+    icon=['app/ui/resources/File_Icon.ico'],
+    version='app/ui/resources/version_info.txt',
 )

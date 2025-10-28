@@ -7,11 +7,11 @@ from functools import partial
 from PyQt6.QtWidgets import QApplication, QMessageBox, QMainWindow
 from PyQt6.QtCore import QTimer
 from PyQt6.QtGui import QIcon
-from utils.ui_main import Ui_MainWindow
-from utils.about_us import AboutDialog
-from firewall import block_app, unblock_app
-from utils.app_manager import get_running_apps
-from utils.settings_manager import load_settings, save_settings
+from app.ui.ui_main import Ui_MainWindow
+from app.ui.about_us import AboutDialog
+from app.core.firewall import block_app, unblock_app
+from app.core.app_manager import get_running_apps
+from app.core.settings_manager import load_settings, save_settings
 
 # CRITICAL FIX: MainWindow must inherit from QMainWindow
 class MainWindow(QMainWindow): 
@@ -185,7 +185,7 @@ if __name__ == "__main__":
     else:
         app_path = os.path.dirname(os.path.abspath(__file__))
 
-    icon_path = os.path.join(app_path, "Extras", "File_Icon.ico")
+    icon_path = os.path.join(app_path, "ui", "resources", "File_Icon.ico")
     app_icon = QIcon(icon_path)
     app.setWindowIcon(app_icon)
 

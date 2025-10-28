@@ -8,9 +8,9 @@ import platform
 # Add parent directory to path so we can import from App folder
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
-from firewall import block_app, unblock_app
-from utils.app_manager import get_running_apps
-from utils.settings_manager import load_settings, save_settings
+from app.core.firewall import block_app, unblock_app
+from app.core.app_manager import get_running_apps
+from app.core.settings_manager import load_settings, save_settings
 
 def main():
     print("[DEBUG] Starting firewall test...")

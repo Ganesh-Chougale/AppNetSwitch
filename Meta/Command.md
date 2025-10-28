@@ -6,13 +6,15 @@ node Codex/Runner.js "App"
 ### Run App in dev mode  
 ```bash
 # for bash
-source ./App/.venv/Scripts/activate
-python ./App/main.py 
+source .venv/Scripts/activate
+cd App
+python -m app.main
 ```  
 ```bash
 # for powershelll
 .\App\.venv\Scripts\Activate.ps1
-python ./App/main.py 
+cd App
+python -m app.main
 ```  
 
 ### Git Pushes
@@ -27,6 +29,5 @@ git push origin main
 ```bash
 source ./App/.venv/Scripts/activate
 cd App
-# python -m PyInstaller --name "AppNetSwitch" --onefile --noconsole --icon="Extras/File_Icon.ico" main.py
 python -m PyInstaller appnetswitch.spec
 ```  

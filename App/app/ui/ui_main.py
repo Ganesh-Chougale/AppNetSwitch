@@ -181,7 +181,7 @@ class Ui_MainWindow:
         self.search_box.textChanged.connect(self.on_search_changed)
         
         # Sort dropdown
-        from utils.app_sorting import get_sort_options, get_default_sort
+        from app.core.app_sorting import get_sort_options, get_default_sort
         sort_label = QLabel("Sort by:")
         self.sort_dropdown = QComboBox()
         self.sort_dropdown.addItems(get_sort_options())
@@ -221,9 +221,9 @@ class Ui_MainWindow:
         self.on_toggle_callback = None  # Store toggle callback
     def populate_app_list(self, apps, blocked, on_toggle):
         from functools import partial
-        from utils.app_filter import categorize_apps
-        from utils.app_searching import search_apps
-        from utils.app_sorting import sort_apps
+        from app.core.app_filter import categorize_apps
+        from app.core.app_searching import search_apps
+        from app.core.app_sorting import sort_apps
         
         # Store data for search and sort operations
         self.all_apps = apps
@@ -398,7 +398,7 @@ class Ui_MainWindow:
             self.populate_app_list(self.all_apps, self.blocked_apps, self.on_toggle_callback)
             
             # Update status label
-            from utils.app_searching import search_apps
+            from app.core.app_searching import search_apps
             filtered_count = len(search_apps(self.all_apps, search_text))
             if search_text.strip():
                 self.main_window.ui.status_label.setText(

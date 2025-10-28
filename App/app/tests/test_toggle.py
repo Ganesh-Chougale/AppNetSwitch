@@ -10,7 +10,7 @@ from PyQt6.QtCore import Qt
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 # Import the toggle switch
-from utils.ui_main import ToggleSwitch
+from app.ui.ui_main import ToggleSwitch
 
 class TestWindow(QMainWindow):
     def __init__(self):
